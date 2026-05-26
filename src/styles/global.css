@@ -1,0 +1,167 @@
+/* ===== Reset & Base ===== */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+  font-family: 'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #141414;
+  color: #e0e0e0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ===== Scrollbar (dark, thin) ===== */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #434343; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #595959; }
+
+/* ===== Selection ===== */
+::selection { background: #1677ff40; color: #fff; }
+
+/* ===== Focus ring ===== */
+:focus-visible {
+  outline: 2px solid #1677ff;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+button:focus-visible, a:focus-visible {
+  outline: 2px solid #1677ff;
+  outline-offset: 1px;
+}
+
+/* ===== Ant Design overrides ===== */
+.ant-layout-sider { transition: all 0.2s ease !important; }
+.ant-table-wrapper .ant-table { background: transparent !important; }
+.ant-menu-dark .ant-menu-item-selected { background: #1677ff20 !important; }
+
+/* Smooth transitions for menu items */
+.ant-menu-dark .ant-menu-item {
+  transition: background 0.15s ease, color 0.15s ease !important;
+  border-radius: 6px !important;
+  margin: 2px 8px !important;
+}
+.ant-menu-dark .ant-menu-item:hover {
+  background: #ffffff10 !important;
+}
+
+/* Card hover effect */
+.ant-card-hoverable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  transition: all 0.25s ease;
+}
+.ant-card-hoverable {
+  transition: all 0.25s ease;
+}
+
+/* Table row hover */
+.ant-table-tbody > tr {
+  transition: background 0.15s ease !important;
+}
+.ant-table-tbody > tr:hover > td {
+  background: #1f1f1f !important;
+}
+
+/* Modal animation */
+.ant-modal {
+  animation: ros-modal-in 0.2s ease-out;
+}
+@keyframes ros-modal-in {
+  from { opacity: 0; transform: scale(0.95) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* ===== Window control buttons (title bar) ===== */
+.win-btn {
+  width: 46px;
+  height: 100%;
+  border: none;
+  background: transparent;
+  color: #a0a0a0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.win-btn:hover {
+  background: #ffffff18;
+  color: #e0e0e0;
+}
+.win-btn-close:hover {
+  background: #e81123;
+  color: #fff;
+}
+
+/* ===== Content area page transition ===== */
+.ros-content {
+  animation: ros-page-in 0.2s ease-out;
+}
+@keyframes ros-page-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ===== Utility ===== */
+.flex-center { display: flex; align-items: center; justify-content: center; }
+.gap-8 { gap: 8px; }
+.gap-16 { gap: 16px; }
+.gap-24 { gap: 24px; }
+
+/* ===== Stat cards on home page ===== */
+.ros-stat-card {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border: 1px solid #303030;
+  border-radius: 12px;
+  padding: 20px 24px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.ros-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+}
+
+/* ===== AI chat bubbles ===== */
+.ros-chat-user {
+  background: #1677ff;
+  color: #fff;
+  border-radius: 12px 12px 4px 12px;
+  padding: 8px 14px;
+  max-width: 80%;
+  margin-left: auto;
+  word-break: break-word;
+}
+.ros-chat-assistant {
+  background: #2a2a2a;
+  color: #e0e0e0;
+  border-radius: 12px 12px 12px 4px;
+  padding: 8px 14px;
+  max-width: 80%;
+  word-break: break-word;
+}
+
+/* ===== Loading placeholder ===== */
+.ros-skeleton {
+  background: linear-gradient(90deg, #1a1a1a 25%, #222 50%, #1a1a1a 75%);
+  background-size: 200% 100%;
+  animation: ros-shimmer 1.5s infinite;
+  border-radius: 8px;
+}
+@keyframes ros-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* ===== Tag colors ===== */
+.ros-tag {
+  border-radius: 12px;
+  padding: 2px 10px;
+  font-size: 12px;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  cursor: pointer;
+}
+.ros-tag:hover {
+  transform: scale(1.05);
+}

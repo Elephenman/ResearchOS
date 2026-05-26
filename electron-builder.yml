@@ -1,0 +1,77 @@
+appId: com.researchos.app
+productName: ResearchOS
+copyright: Copyright 2025 ResearchOS
+
+directories:
+  output: dist-build
+  buildResources: resources
+
+files:
+  - dist/**/*
+  - dist-electron/**/*
+  - "!node_modules/**/*"
+
+extraResources:
+  - from: "node_modules/better-sqlite3/"
+    to: "better-sqlite3"
+    filter:
+      - "**/*.node"
+      - "**/*.js"
+      - "**/*.json"
+      - "binding.gyp"
+      - "src/**/*"
+      - "deps/**/*"
+
+asar: true
+asarUnpack:
+  - "**/*.node"
+  - "**/better-sqlite3/**"
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: resources/icon.ico
+
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  icon: resources/icon.png
+
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+  icon: resources/icon.png
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  installerIcon: resources/icon.ico
+  uninstallerIcon: resources/icon.ico
+  installerHeaderIcon: resources/icon.ico
+  installerLanguages:
+    - zh-CN
+    - en-US
+  language: 2052
+  shortcutName: ResearchOS
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  artifactName: "ResearchOS-Setup-${version}.${ext}"
+
+dmg:
+  artifactName: "ResearchOS-${version}.${ext}"
+
+appImage:
+  artifactName: "ResearchOS-${version}.${ext}"
+
+publish:
+  provider: github
+  owner: Elephenman
+  repo: ResearchOS
+  releaseType: release

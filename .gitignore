@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-electron/
+out/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Runtime data
+window-state.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Electron-builder
+*.blockmap
+*.exe
+*.dmg
+*.AppImage
+*.snap
+
+# Coverage
+coverage/
+
+# Misc
+*.tgz

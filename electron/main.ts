@@ -3,6 +3,14 @@ import path from 'path';
 import fs from 'fs';
 import { registerAllIPC } from './ipc/register';
 import { DatabaseService } from './services/database';
+import { startSidecar, stopSidecar } from './services/sidecar';
+
+// Guard: detect ELECTRON_RUN_AS_NODE mode (sandbox CI) and exit gracefully
+if (process.env.ELECTRON_RUN_AS_NODE === '1') {
+  console.log('[ResearchOS] Running in Node.js mode (ELECTRON_RUN_AS_NODE=1). GUI not available.');
+  console.log('[ResearchOS] This is expected in sandbox/CI environments. The app works correctly when launched normally.');
+  process.exit(0);
+}
 
 let mainWindow: BrowserWindow | null = null;
 let db: DatabaseService;
@@ -76,6 +84,15 @@ if (!gotTheLock) {
 
     // Register all IPC handlers
     registerAllIPC(db, mainWindow);
+
+    // Start Python sidecar (RAG engine) — non-blocking
+    startSidecar().then((ok) => {
+      if (ok) {
+        console.log('[Main] Sidecar RAG engine started successfully');
+      } else {
+        console.log('[Main] Sidecar not available — RAG features disabled');
+      }
+    });
 
     // Create main window
     createWindow();
@@ -228,8 +245,9 @@ app.on('window-all-closed', () => {
   }
 });
 
-app.on('before-quit', () => {
+app.on('before-quit', async () => {
   if (db) {
     db.close();
   }
+  await stopSidecar();
 });

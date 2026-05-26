@@ -2,6 +2,7 @@ import { ipcMain, BrowserWindow, dialog, app } from 'electron';
 import { DatabaseService } from '../services/database';
 import { searchPapers, downloadOpenAccessPDF, createSearchHistoryEntry } from '../services/search';
 import { chat as aiChat, summarizePaper, extractKeyFindings, translateAbstract } from '../services/ai';
+import { findZoteroDataDir, importFromZotero } from '../services/zotero-import';
 import fs from 'fs';
 import path from 'path';
 import https from 'https';
@@ -529,8 +530,107 @@ export function registerReviewIPC(_db: DatabaseService): void {
 }
 
 export function registerRAGIPC(_db: DatabaseService): void {
-  ipcMain.handle('rag:indexPaper', async () => {});
-  ipcMain.handle('rag:searchRelevant', async () => []);
+  const { sidecarFetch, isSidecarReady } = require('../services/sidecar') as typeof import('../services/sidecar');
+
+  // Ingest a paper's PDF into the RAG index
+  ipcMain.handle('rag:indexPaper', async (_event, paperId: string, filePath: string, meta?: Record<string, unknown>) => {
+    if (!isSidecarReady()) {
+      return { status: 'error', message: 'RAG engine not available. Start the Python sidecar first.' };
+    }
+    try {
+      return await sidecarFetch('POST', '/api/v1/ingest', {
+        paper_id: paperId,
+        file_path: filePath,
+        title: meta?.title || '',
+        authors: meta?.authors || '',
+        year: meta?.year || null,
+      });
+    } catch (err: unknown) {
+      return { status: 'error', message: (err as Error).message };
+    }
+  });
+
+  // Batch index multiple papers
+  ipcMain.handle('rag:indexBatch', async (_event, documents: Array<Record<string, unknown>>) => {
+    if (!isSidecarReady()) {
+      return { status: 'error', message: 'RAG engine not available' };
+    }
+    try {
+      return await sidecarFetch('POST', '/api/v1/ingest/batch', { documents });
+    } catch (err: unknown) {
+      return { status: 'error', message: (err as Error).message };
+    }
+  });
+
+  // Semantic search across indexed papers
+  ipcMain.handle('rag:searchRelevant', async (_event, query: string, topK?: number, filterPaperIds?: string[]) => {
+    if (!isSidecarReady()) {
+      return [];
+    }
+    try {
+      const result = await sidecarFetch('POST', '/api/v1/query', {
+        query,
+        top_k: topK || 8,
+        filter_paper_ids: filterPaperIds || null,
+        use_rerank: true,
+      }) as Record<string, unknown>;
+      return result.results || [];
+    } catch (err: unknown) {
+      console.error('[RAG] Search failed:', (err as Error).message);
+      return [];
+    }
+  });
+
+  // Get RAG engine status
+  ipcMain.handle('rag:status', async () => {
+    if (!isSidecarReady()) {
+      return { status: 'offline', message: 'Python sidecar not running' };
+    }
+    try {
+      return await sidecarFetch('GET', '/api/v1/status');
+    } catch {
+      return { status: 'error', message: 'Failed to reach sidecar' };
+    }
+  });
+
+  // Delete a paper from the RAG index
+  ipcMain.handle('rag:deletePaper', async (_event, paperId: string) => {
+    if (!isSidecarReady()) {
+      return { status: 'error', message: 'RAG engine not available' };
+    }
+    try {
+      return await sidecarFetch('DELETE', `/api/v1/paper/${paperId}`);
+    } catch (err: unknown) {
+      return { status: 'error', message: (err as Error).message };
+    }
+  });
+}
+
+export function registerZoteroIPC(db: DatabaseService): void {
+  // Find Zotero data directory
+  ipcMain.handle('zotero:findDataDir', async () => {
+    return findZoteroDataDir();
+  });
+
+  // Import from Zotero
+  ipcMain.handle('zotero:import', async (_event, dataDir: string) => {
+    try {
+      const result = importFromZotero(dataDir, db);
+      return result;
+    } catch (err: unknown) {
+      return { imported: 0, skipped: 0, errors: [(err as Error).message] };
+    }
+  });
+
+  // Select Zotero directory via dialog
+  ipcMain.handle('zotero:selectDir', async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory'],
+      title: 'Select Zotero Data Directory',
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    return result.filePaths[0];
+  });
 }
 
 export function registerAllIPC(db: DatabaseService, mainWindow: BrowserWindow | null): void {
@@ -547,4 +647,5 @@ export function registerAllIPC(db: DatabaseService, mainWindow: BrowserWindow | 
   registerDownloaderIPC(db);
   registerReviewIPC(db);
   registerRAGIPC(db);
+  registerZoteroIPC(db);
 }

@@ -215,8 +215,24 @@ export interface ElectronAPI {
   generateReviewSection(sectionId: string): Promise<string>;
 
   // RAG
-  indexPaper(paperId: string): Promise<void>;
-  searchRelevant(query: string, topK: number): Promise<{ paperId: string; score: number; snippet: string }[]>;
+  indexPaper(paperId: string, filePath: string, meta?: Record<string, unknown>): Promise<{ status: string; chunks_created?: number; message?: string }>;
+  indexBatch(documents: Record<string, unknown>[]): Promise<{ total: number; success: number; failed: number }>;
+  searchRelevant(query: string, topK?: number, filterPaperIds?: string[]): Promise<Array<{
+    chunk_id: string;
+    paper_id: string;
+    title: string;
+    content: string;
+    score: number;
+    page_number?: number;
+    metadata?: Record<string, unknown>;
+  }>>;
+  ragStatus(): Promise<{ status: string; version?: string; total_chunks?: number; total_papers?: number; message?: string }>;
+  ragDeletePaper(paperId: string): Promise<{ paper_id: string; chunks_deleted: number; status: string }>;
+
+  // Zotero
+  zoteroFindDataDir(): Promise<string | null>;
+  zoteroImport(dataDir: string): Promise<{ imported: number; skipped: number; errors: string[] }>;
+  zoteroSelectDir(): Promise<string | null>;
 
   // Settings
   getSetting(key: string): Promise<string | null>;

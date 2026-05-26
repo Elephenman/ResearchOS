@@ -71,8 +71,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   generateReviewSection: (sectionId: string) => ipcRenderer.invoke('review:generateReviewSection', sectionId),
 
   // RAG
-  indexPaper: (paperId: string) => ipcRenderer.invoke('rag:indexPaper', paperId),
-  searchRelevant: (query: string, topK: number) => ipcRenderer.invoke('rag:searchRelevant', query, topK),
+  indexPaper: (paperId: string, filePath: string, meta?: object) => ipcRenderer.invoke('rag:indexPaper', paperId, filePath, meta),
+  indexBatch: (documents: object[]) => ipcRenderer.invoke('rag:indexBatch', documents),
+  searchRelevant: (query: string, topK?: number, filterPaperIds?: string[]) => ipcRenderer.invoke('rag:searchRelevant', query, topK, filterPaperIds),
+  ragStatus: () => ipcRenderer.invoke('rag:status'),
+  ragDeletePaper: (paperId: string) => ipcRenderer.invoke('rag:deletePaper', paperId),
+
+  // Zotero
+  zoteroFindDataDir: () => ipcRenderer.invoke('zotero:findDataDir'),
+  zoteroImport: (dataDir: string) => ipcRenderer.invoke('zotero:import', dataDir),
+  zoteroSelectDir: () => ipcRenderer.invoke('zotero:selectDir'),
 
   // Settings
   getSetting: (key: string) => ipcRenderer.invoke('settings:getSetting', key),

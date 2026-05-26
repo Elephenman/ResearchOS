@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Table, Input, Button, Space, Tag, Select, Card, Typography, Modal, message,
-  Dropdown, Tooltip, Badge, Divider,
+  Dropdown, Tooltip, Badge, Divider, Switch,
 } from 'antd';
 import {
   PlusOutlined, ImportOutlined, ExportOutlined, DeleteOutlined,
   SearchOutlined, StarOutlined, StarFilled,
   EyeOutlined, ReadOutlined, MoreOutlined, EditOutlined,
-  FilePdfOutlined, InboxOutlined,
+  FilePdfOutlined, InboxOutlined, RobotOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type { Paper } from '../../types/electron';
@@ -39,6 +39,15 @@ const LibraryPage: React.FC = () => {
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingPaper, setEditingPaper] = useState<Paper | null>(null);
+  const [semanticMode, setSemanticMode] = useState(false);
+  const [semanticResults, setSemanticResults] = useState<Array<{
+    chunk_id: string;
+    paper_id: string;
+    title: string;
+    content: string;
+    score: number;
+    page_number?: number;
+  }>>([]);
 
   useEffect(() => {
     fetchPapers();
@@ -53,6 +62,20 @@ const LibraryPage: React.FC = () => {
       setKeyword(value);
     }, 300);
     setSearchTimer(timer);
+  };
+
+  // Semantic search via RAG engine
+  const handleSemanticSearch = async (query: string) => {
+    if (!query.trim()) {
+      setSemanticResults([]);
+      return;
+    }
+    try {
+      const results = await window.electronAPI.searchRelevant(query, 8);
+      setSemanticResults(results);
+    } catch {
+      message.warning('语义搜索不可用，请确认 RAG 引擎已启动');
+    }
   };
 
   const handleImport = async () => {
@@ -242,21 +265,71 @@ const LibraryPage: React.FC = () => {
       <Card style={{ background: '#1f1f1f', border: '1px solid #303030', marginBottom: 16 }}>
         <Space wrap>
           <Input
-            placeholder="搜索标题、作者、DOI..."
-            prefix={<SearchOutlined />}
+            placeholder={semanticMode ? "语义搜索：描述你要找的内容..." : "搜索标题、作者、DOI..."}
+            prefix={semanticMode ? <RobotOutlined /> : <SearchOutlined />}
             defaultValue={keyword}
             onChange={e => handleSearchChange(e.target.value)}
+            onPressEnter={() => semanticMode && handleSemanticSearch(keyword)}
             style={{ width: 320 }}
             allowClear
           />
-          <Select placeholder="状态筛选" style={{ width: 120 }} allowClear
-            value={statusFilter || undefined} onChange={v => setStatusFilter(v || '')}>
-            {Object.entries(statusMap).map(([k, v]) => (
-              <Option key={k} value={k}>{v.label}</Option>
-            ))}
-          </Select>
-          {total > 0 && <Text type="secondary">共 {total} 篇</Text>}
+          <Tooltip title="语义搜索需要 RAG 引擎运行中">
+            <Space>
+              <RobotOutlined style={{ color: semanticMode ? '#1677ff' : '#666' }} />
+              <Switch
+                size="small"
+                checked={semanticMode}
+                onChange={setSemanticMode}
+                checkedChildren="AI"
+                unCheckedChildren="关键词"
+              />
+            </Space>
+          </Tooltip>
+          {!semanticMode && (
+            <Select placeholder="状态筛选" style={{ width: 120 }} allowClear
+              value={statusFilter || undefined} onChange={v => setStatusFilter(v || '')}>
+              {Object.entries(statusMap).map(([k, v]) => (
+                <Option key={k} value={k}>{v.label}</Option>
+              ))}
+            </Select>
+          )}
+          {semanticMode && semanticResults.length > 0 && (
+            <Tag color="blue">{semanticResults.length} 条语义结果</Tag>
+          )}
+          {total > 0 && !semanticMode && <Text type="secondary">共 {total} 篇</Text>}
         </Space>
+        {/* Semantic search results */}
+        {semanticMode && semanticResults.length > 0 && (
+          <div style={{ marginTop: 12 }}>
+            {semanticResults.map((r, i) => (
+              <Card
+                key={r.chunk_id}
+                size="small"
+                style={{
+                  background: '#252525',
+                  border: '1px solid #333',
+                  marginBottom: 8,
+                  cursor: 'pointer',
+                }}
+                onClick={() => {
+                  // Navigate to reader for this paper
+                  window.location.hash = `/reader/${r.paper_id}`;
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Text strong style={{ color: '#e0e0e0' }}>{r.title || r.paper_id}</Text>
+                  <Tag color="blue">Score: {r.score.toFixed(3)}</Tag>
+                </div>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  {r.page_number ? `第 ${r.page_number} 页` : ''} {r.paper_id}
+                </Text>
+                <div style={{ marginTop: 4, color: '#bbb', fontSize: 13 }}>
+                  {r.content.substring(0, 200)}{r.content.length > 200 ? '...' : ''}
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
       </Card>
 
       <Card style={{ background: '#1f1f1f', border: '1px solid #303030' }}>

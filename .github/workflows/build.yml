@@ -92,48 +92,48 @@ jobs:
           name: ResearchOS-Linux
           path: dist-build/ResearchOS-*.AppImage
 
-  # ── macOS Build ────────────────────────────────────────────
-  build-macos:
-    name: Build macOS
-    runs-on: macos-latest
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'push'
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Rebuild native modules for Electron
-        run: npx electron-builder install-app-deps
-
-      - name: Build frontend + Electron
-        run: npm run build
-
-      - name: Package macOS DMG
-        run: npx electron-builder --mac --publish never
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_IDENTITY_AUTO_DISCOVERY: false # no code signing on CI
-
-      - name: Upload macOS artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ResearchOS-macOS
-          path: dist-build/ResearchOS-*.dmg
+  # ── macOS Build (暂时禁用) ────────────────────────────────
+  # build-macos:
+  #   name: Build macOS
+  #   runs-on: macos-latest
+  #   if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'push'
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+  #
+  #     - name: Setup Node.js
+  #       uses: actions/setup-node@v4
+  #       with:
+  #         node-version: 22
+  #         cache: npm
+  #
+  #     - name: Install dependencies
+  #       run: npm ci
+  #
+  #     - name: Rebuild native modules for Electron
+  #       run: npx electron-builder install-app-deps
+  #
+  #     - name: Build frontend + Electron
+  #       run: npm run build
+  #
+  #     - name: Package macOS DMG
+  #       run: npx electron-builder --mac --publish never
+  #       env:
+  #         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #         CSC_IDENTITY_AUTO_DISCOVERY: false # no code signing on CI
+  #
+  #     - name: Upload macOS artifacts
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: ResearchOS-macOS
+  #         path: dist-build/ResearchOS-*.dmg
 
   # ── Release ─────────────────────────────────────────────────
   release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build-windows, build-linux, build-macos]
+    needs: [build-windows, build-linux]
     permissions:
       contents: write
     steps:
@@ -158,8 +158,9 @@ jobs:
             ### 下载安装包
 
             - **Windows**：下载 `ResearchOS-Setup-${{ github.ref_name }}.exe`，双击安装
-            - **macOS**：下载 `ResearchOS-${{ github.ref_name }}.dmg`，拖入 Applications
             - **Linux**：下载 `ResearchOS-${{ github.ref_name }}.AppImage`，赋予执行权限后运行
+
+            > **注意**：macOS 版本暂时未发布，将在后续版本中提供。
 
             ### 快速开始
 

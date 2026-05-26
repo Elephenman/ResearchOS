@@ -85,8 +85,15 @@ if (!gotTheLock) {
     // Register all IPC handlers
     registerAllIPC(db, mainWindow);
 
-    // Start Python sidecar (RAG engine) — non-blocking
-    startSidecar().then((ok) => {
+    // Start Python sidecar (RAG engine) — non-blocking, pass settings getter
+    const getSettingForSidecar = async (key: string): Promise<string | undefined> => {
+      try {
+        return db.getSetting(key);
+      } catch {
+        return undefined;
+      }
+    };
+    startSidecar(getSettingForSidecar).then((ok) => {
       if (ok) {
         console.log('[Main] Sidecar RAG engine started successfully');
       } else {

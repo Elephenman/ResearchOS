@@ -27,7 +27,7 @@ async def lifespan(app: FastAPI):
     """Application lifespan: startup → yield → shutdown."""
     # --- Startup ---
     logger.info("ResearchOS Sidecar starting...")
-    logger.info("Embedding provider: %s / model: %s", settings.embedding_provider, settings.embedding_model)
+    logger.info("Embedding: openai-compatible / model: %s / base: %s", settings.embedding_model, settings.embedding_base_url)
 
     embedder = EmbeddingService()
     store = VectorStore()

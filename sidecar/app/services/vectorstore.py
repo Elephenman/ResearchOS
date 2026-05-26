@@ -20,6 +20,7 @@ import struct
 from typing import TYPE_CHECKING
 
 import numpy as np
+import sqlite_vec
 
 from app.config import settings
 
@@ -58,6 +59,10 @@ class VectorStore:
             self._conn = sqlite3.connect(self.db_path)
             self._conn.execute("PRAGMA journal_mode=WAL")
             self._conn.execute("PRAGMA foreign_keys=ON")
+            # Load sqlite-vec extension
+            self._conn.enable_load_extension(True)
+            sqlite_vec.load(self._conn)
+            self._conn.enable_load_extension(False)
             if not self._initialized:
                 self._init_tables()
                 self._initialized = True

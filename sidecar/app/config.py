@@ -15,16 +15,11 @@ class Settings:
     # Database
     db_path: str = field(default_factory=lambda: os.getenv("SIDECAR_DB_PATH", ""))
 
-    # Embedding
-    embedding_provider: str = field(default_factory=lambda: os.getenv("SIDECAR_EMBEDDING_PROVIDER", "ollama"))
-    embedding_model: str = field(default_factory=lambda: os.getenv("SIDECAR_EMBEDDING_MODEL", "nomic-embed-text"))
-    embedding_dim: int = field(default_factory=lambda: int(os.getenv("SIDECAR_EMBEDDING_DIM", "768")))
-    ollama_base_url: str = field(default_factory=lambda: os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434"))
-
-    # OpenAI fallback (optional)
-    openai_api_key: str = field(default_factory=lambda: os.getenv("OPENAI_API_KEY", ""))
-    openai_base_url: str = field(default_factory=lambda: os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1"))
-    openai_model: str = field(default_factory=lambda: os.getenv("SIDECAR_OPENAI_MODEL", "text-embedding-3-small"))
+    # Embedding — OpenAI-compatible API (supports OpenAI, DeepSeek, Moonshot, etc.)
+    embedding_api_key: str = field(default_factory=lambda: os.getenv("SIDECAR_EMBEDDING_API_KEY", ""))
+    embedding_base_url: str = field(default_factory=lambda: os.getenv("SIDECAR_EMBEDDING_BASE_URL", "https://api.openai.com/v1"))
+    embedding_model: str = field(default_factory=lambda: os.getenv("SIDECAR_EMBEDDING_MODEL", "text-embedding-3-small"))
+    embedding_dim: int = field(default_factory=lambda: int(os.getenv("SIDECAR_EMBEDDING_DIM", "1536")))
 
     # Chunking
     chunk_size: int = 512

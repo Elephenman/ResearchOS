@@ -6,16 +6,30 @@ const { Title, Text, Paragraph } = Typography;
 const { Option } = Select;
 
 const AI_PROVIDERS = [
-  { value: 'ollama', label: 'Ollama (本地)', desc: '免费，需本地安装 Ollama' },
   { value: 'openai', label: 'OpenAI', desc: 'GPT-4o / GPT-4o-mini' },
+  { value: 'deepseek', label: 'DeepSeek', desc: 'DeepSeek-V3 / Chat' },
   { value: 'anthropic', label: 'Anthropic', desc: 'Claude 3 系列' },
+  { value: 'moonshot', label: 'Moonshot', desc: 'Kimi' },
+  { value: 'zhipu', label: 'Zhipu', desc: 'GLM-4' },
+  { value: 'custom', label: '自定义 (OpenAI 兼容)', desc: '任何 OpenAI 兼容 API' },
 ];
 
 const AI_MODELS: Record<string, string[]> = {
-  ollama: ['llama3.2', 'llama3.1', 'qwen2.5', 'gemma2', 'mistral', 'phi3'],
   openai: ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo'],
+  deepseek: ['deepseek-chat', 'deepseek-reasoner'],
   anthropic: ['claude-3-haiku-20240307', 'claude-3-sonnet-20240229', 'claude-3-opus-20240229'],
+  moonshot: ['moonshot-v1-8k', 'moonshot-v1-32k'],
+  zhipu: ['glm-4', 'glm-4-flash'],
+  custom: [],
 };
+
+const EMBEDDING_MODELS = [
+  { value: 'text-embedding-3-small', label: 'text-embedding-3-small (OpenAI, 1536维)', dim: 1536 },
+  { value: 'text-embedding-3-large', label: 'text-embedding-3-large (OpenAI, 3072维)', dim: 3072 },
+  { value: 'text-embedding-ada-002', label: 'text-embedding-ada-002 (OpenAI, 1536维)', dim: 1536 },
+  { value: 'embedding-3', label: 'embedding-3 (DeepSeek)', dim: 2048 },
+  { value: 'custom', label: '自定义模型', dim: 0 },
+];
 
 const CITATION_STYLES = [
   { value: 'apa', label: 'APA 7th' },
@@ -28,10 +42,12 @@ const CITATION_STYLES = [
 const SettingsPage: React.FC = () => {
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
-  const [aiProvider, setAiProvider] = useState('ollama');
+  const [aiProvider, setAiProvider] = useState('openai');
   const [ragStatus, setRagStatus] = useState<Record<string, unknown> | null>(null);
   const [zoteroDir, setZoteroDir] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
+  const [embedModel, setEmbedModel] = useState('text-embedding-3-small');
+  const [embedProvider, setEmbedProvider] = useState('openai');
 
   useEffect(() => {
     loadSettings();
@@ -43,8 +59,8 @@ const SettingsPage: React.FC = () => {
     try {
       const settings = await window.electronAPI.getAllSettings();
       form.setFieldsValue({
-        aiProvider: settings['ai.provider'] || 'ollama',
-        aiModel: settings['ai.model'] || 'llama3.2',
+        aiProvider: settings['ai.provider'] || 'openai',
+        aiModel: settings['ai.model'] || 'gpt-4o-mini',
         openaiApiKey: settings['ai.openai.apiKey'] || '',
         openaiBaseUrl: settings['ai.openai.baseUrl'] || 'https://api.openai.com',
         anthropicApiKey: settings['ai.anthropic.apiKey'] || '',
@@ -52,8 +68,15 @@ const SettingsPage: React.FC = () => {
         language: settings['app.language'] || 'zh-CN',
         autoBackup: settings['app.autoBackup'] !== 'false',
         maxBackups: settings['app.maxBackups'] || '5',
+        embedProvider: settings['rag.embed.provider'] || 'openai',
+        embedApiKey: settings['rag.embed.apiKey'] || '',
+        embedBaseUrl: settings['rag.embed.baseUrl'] || 'https://api.openai.com/v1',
+        embedModel: settings['rag.embed.model'] || 'text-embedding-3-small',
+        embedCustomModel: settings['rag.embed.customModel'] || '',
       });
-      setAiProvider(settings['ai.provider'] || 'ollama');
+      setAiProvider(settings['ai.provider'] || 'openai');
+      setEmbedProvider(settings['rag.embed.provider'] || 'openai');
+      setEmbedModel(settings['rag.embed.model'] || 'text-embedding-3-small');
     } catch { /* ignore */ }
   };
 
@@ -86,6 +109,11 @@ const SettingsPage: React.FC = () => {
       await window.electronAPI.setSetting('app.language', values.language);
       await window.electronAPI.setSetting('app.autoBackup', values.autoBackup ? 'true' : 'false');
       await window.electronAPI.setSetting('app.maxBackups', values.maxBackups);
+      // RAG embedding settings
+      await window.electronAPI.setSetting('rag.embed.provider', values.embedProvider);
+      if (values.embedApiKey) await window.electronAPI.setSetting('rag.embed.apiKey', values.embedApiKey);
+      await window.electronAPI.setSetting('rag.embed.baseUrl', values.embedBaseUrl);
+      await window.electronAPI.setSetting('rag.embed.model', values.embedModel === 'custom' ? values.embedCustomModel : values.embedModel);
       message.success('设置已保存');
     } catch {
       message.error('保存失败');
@@ -168,7 +196,7 @@ const SettingsPage: React.FC = () => {
 
                 <Divider />
                 <Paragraph type="secondary" style={{ fontSize: 12 }}>
-                  💡 Ollama 免费且本地运行，推荐配置 GPU 以获得更好性能。安装 Ollama 后运行：<code>ollama pull llama3.2</code>
+                  💡 推荐使用 DeepSeek 或 Moonshot 等国内 API，延迟低且性价比高。嵌入模型请在「RAG 引擎」标签页单独配置。
                 </Paragraph>
               </Card>
             ),
@@ -178,12 +206,12 @@ const SettingsPage: React.FC = () => {
             label: <span><RobotOutlined /> RAG 引擎</span>,
             children: (
               <Card style={{ background: '#1f1f1f', border: '1px solid #303030' }}>
-                <Space direction="vertical" style={{ width: '100%' }}>
+                <Space direction="vertical" style={{ width: '100%' }} size="middle">
                   {/* Status */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Text strong style={{ color: '#e0e0e0' }}>引擎状态</Text>
-                    <Tag color={ragStatus?.status === 'ok' ? 'green' : ragStatus?.status === 'running' ? 'green' : 'red'}>
-                      {ragStatus?.status === 'ok' || ragStatus?.status === 'running' ? '运行中' : '离线'}
+                    <Tag color={ragStatus?.status === 'ok' || ragStatus?.status === 'running' ? 'green' : ragStatus?.status === 'not_configured' ? 'orange' : 'red'}>
+                      {ragStatus?.status === 'ok' || ragStatus?.status === 'running' ? '运行中' : ragStatus?.status === 'not_configured' ? '未配置' : '离线'}
                     </Tag>
                   </div>
 
@@ -197,6 +225,12 @@ const SettingsPage: React.FC = () => {
                           <div>已索引：{String(ragStatus?.total_chunks || 0)} 个片段，{String(ragStatus?.total_papers || 0)} 篇文献</div>
                         </div>
                       }
+                    />
+                  ) : ragStatus?.status === 'not_configured' ? (
+                    <Alert
+                      type="warning"
+                      message="嵌入模型未配置"
+                      description="请先在下方配置嵌入模型 API Key，然后重启 Sidecar。"
                     />
                   ) : (
                     <Alert
@@ -214,6 +248,58 @@ const SettingsPage: React.FC = () => {
                         </div>
                       }
                     />
+                  )}
+
+                  <Divider style={{ borderColor: '#303030' }} />
+
+                  {/* Embedding API Config */}
+                  <Title level={5} style={{ color: '#e0e0e0' }}>嵌入模型配置</Title>
+                  <Paragraph type="secondary" style={{ fontSize: 12 }}>
+                    配置 OpenAI 兼容的嵌入 API。支持 OpenAI、DeepSeek、Moonshot、Zhipu、SiliconFlow 等任何 OpenAI 兼容接口。
+                  </Paragraph>
+
+                  <Form.Item name="embedProvider" label="API 提供商">
+                    <Select onChange={(v) => {
+                      setEmbedProvider(v);
+                      const urls: Record<string, string> = {
+                        openai: 'https://api.openai.com/v1',
+                        deepseek: 'https://api.deepseek.com/v1',
+                        moonshot: 'https://api.moonshot.cn/v1',
+                        zhipu: 'https://open.bigmodel.cn/api/paas/v4',
+                        siliconflow: 'https://api.siliconflow.cn/v1',
+                        custom: '',
+                      };
+                      form.setFieldsValue({ embedBaseUrl: urls[v] || '' });
+                    }}>
+                      <Option value="openai">OpenAI</Option>
+                      <Option value="deepseek">DeepSeek</Option>
+                      <Option value="moonshot">Moonshot (Kimi)</Option>
+                      <Option value="zhipu">Zhipu (GLM)</Option>
+                      <Option value="siliconflow">SiliconFlow</Option>
+                      <Option value="custom">自定义</Option>
+                    </Select>
+                  </Form.Item>
+
+                  <Form.Item name="embedApiKey" label="API Key">
+                    <Input.Password placeholder="sk-..." />
+                  </Form.Item>
+
+                  <Form.Item name="embedBaseUrl" label="API Base URL">
+                    <Input placeholder="https://api.openai.com/v1" />
+                  </Form.Item>
+
+                  <Form.Item name="embedModel" label="嵌入模型">
+                    <Select onChange={(v) => setEmbedModel(v)}>
+                      {EMBEDDING_MODELS.map(m => (
+                        <Option key={m.value} value={m.value}>{m.label}</Option>
+                      ))}
+                    </Select>
+                  </Form.Item>
+
+                  {embedModel === 'custom' && (
+                    <Form.Item name="embedCustomModel" label="自定义模型名称">
+                      <Input placeholder="my-embedding-model" />
+                    </Form.Item>
                   )}
 
                   <Button icon={<RobotOutlined />} onClick={checkRagStatus}>

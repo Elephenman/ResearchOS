@@ -93,7 +93,9 @@ async function waitForSidecar(maxWaitMs: number = SIDECAR_STARTUP_TIMEOUT): Prom
 /**
  * Start the Python sidecar process.
  */
-export async function startSidecar(): Promise<boolean> {
+export async function startSidecar(
+  getSetting?: (key: string) => Promise<string | undefined>
+): Promise<boolean> {
   // Check if already running
   if (await checkSidecarHealth()) {
     console.log('[Sidecar] Already running on port', SIDECAR_PORT);
@@ -113,6 +115,19 @@ export async function startSidecar(): Promise<boolean> {
 
   console.log('[Sidecar] Starting...', pythonPath, sidecarPath);
 
+  // Read embedding settings from Electron store
+  let embedEnv: Record<string, string> = {};
+  if (getSetting) {
+    const [apiKey, baseUrl, model] = await Promise.all([
+      getSetting('rag.embed.apiKey'),
+      getSetting('rag.embed.baseUrl'),
+      getSetting('rag.embed.model'),
+    ]);
+    if (apiKey) embedEnv.SIDECAR_EMBEDDING_API_KEY = apiKey;
+    if (baseUrl) embedEnv.SIDECAR_EMBEDDING_BASE_URL = baseUrl;
+    if (model) embedEnv.SIDECAR_EMBEDDING_MODEL = model;
+  }
+
   sidecarProcess = spawn(pythonPath, ['-m', 'app.main'], {
     cwd: sidecarDir,
     env: {
@@ -122,6 +137,7 @@ export async function startSidecar(): Promise<boolean> {
       SIDECAR_DB_PATH: path.join(app.getPath('userData'), 'rag.db'),
       PYTHONUNBUFFERED: '1',
       PYTHONIOENCODING: 'utf-8',
+      ...embedEnv,
     },
     stdio: ['pipe', 'pipe', 'pipe'],
   });

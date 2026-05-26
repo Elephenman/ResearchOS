@@ -182,4 +182,14 @@ export class DatabaseService {
   close(): void {
     this.db.close();
   }
+
+  // Settings helpers
+  getSetting(key: string): string | undefined {
+    const row = this.db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as { value: string } | undefined;
+    return row?.value;
+  }
+
+  setSetting(key: string, value: string): void {
+    this.db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, value);
+  }
 }

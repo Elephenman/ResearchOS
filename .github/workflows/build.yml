@@ -1,0 +1,174 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+
+# 防止同一个 ref 重复运行
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Windows Build ──────────────────────────────────────────
+  build-windows:
+    name: Build Windows
+    runs-on: windows-latest
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'push'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Rebuild native modules for Electron
+        run: npx electron-builder install-app-deps
+        env:
+          ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron
+          ELECTRON_BUILDER_CACHE: ${{ github.workspace }}/.cache/electron-builder
+
+      - name: Build frontend + Electron
+        run: npm run build
+
+      - name: Package Windows NSIS
+        run: npx electron-builder --win --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ResearchOS-Windows
+          path: dist-build/ResearchOS-Setup-*.exe
+
+  # ── Linux Build ────────────────────────────────────────────
+  build-linux:
+    name: Build Linux
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'push'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install system dependencies (for better-sqlite3)
+        run: sudo apt-get update && sudo apt-get install -y build-essential python3
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Rebuild native modules for Electron
+        run: npx electron-builder install-app-deps
+        env:
+          ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron
+          ELECTRON_BUILDER_CACHE: ${{ github.workspace }}/.cache/electron-builder
+
+      - name: Build frontend + Electron
+        run: npm run build
+
+      - name: Package Linux AppImage
+        run: npx electron-builder --linux --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ResearchOS-Linux
+          path: dist-build/ResearchOS-*.AppImage
+
+  # ── macOS Build ────────────────────────────────────────────
+  build-macos:
+    name: Build macOS
+    runs-on: macos-latest
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'push'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Rebuild native modules for Electron
+        run: npx electron-builder install-app-deps
+
+      - name: Build frontend + Electron
+        run: npm run build
+
+      - name: Package macOS DMG
+        run: npx electron-builder --mac --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false # no code signing on CI
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ResearchOS-macOS
+          path: dist-build/ResearchOS-*.dmg
+
+  # ── Release ─────────────────────────────────────────────────
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-windows, build-linux, build-macos]
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List artifacts
+        run: find artifacts -type f | sort
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          body: |
+            ## ResearchOS ${{ github.ref_name }}
+
+            ### 下载安装包
+
+            - **Windows**：下载 `ResearchOS-Setup-${{ github.ref_name }}.exe`，双击安装
+            - **macOS**：下载 `ResearchOS-${{ github.ref_name }}.dmg`，拖入 Applications
+            - **Linux**：下载 `ResearchOS-${{ github.ref_name }}.AppImage`，赋予执行权限后运行
+
+            ### 快速开始
+
+            1. 安装 ResearchOS
+            2. 首次启动后，进入「设置 → RAG 引擎」配置嵌入 API Key
+            3. 推荐嵌入模型提供商：DeepSeek / Moonshot（性价比高）
+
+            ### 完整更新日志
+
+            详见 [CHANGELOG](CHANGELOG.md) 或 [GitHub Commits](https://github.com/Elephenman/ResearchOS/commits/main)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

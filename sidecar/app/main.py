@@ -56,10 +56,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS: allow Electron's localhost to call the sidecar
+# CORS: only allow Electron's localhost to call the sidecar (prevent external access)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Sidecar is local-only, safe to allow all
+    allow_origins=["http://localhost:*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )

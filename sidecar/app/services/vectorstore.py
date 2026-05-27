@@ -17,6 +17,7 @@ import logging
 import os
 import sqlite3
 import struct
+import threading
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -40,6 +41,17 @@ def _deserialize_vector(data: bytes, dim: int) -> np.ndarray:
     return np.array(struct.unpack(f"{dim}f", data), dtype=np.float32)
 
 
+def _escape_fts_query(query: str) -> str:
+    """Escape special FTS5 characters in a query string.
+
+    FTS5 special chars: * " ( ) : ^
+    Wraps in double quotes for safe phrase matching.
+    """
+    # Remove FTS5 special characters and wrap in quotes
+    cleaned = query.replace('"', '').replace('*', '').replace('(', '').replace(')', '')
+    return f'"{cleaned}"'
+
+
 class VectorStore:
     """Hybrid vector + FTS5 retrieval engine backed by sqlite-vec."""
 
@@ -50,23 +62,25 @@ class VectorStore:
             self.db_path = os.path.join(
                 os.path.expanduser("~"), ".researchos", "rag.db"
             )
-        self._conn: sqlite3.Connection | None = None
+        self._local = threading.local()
         self._initialized = False
 
     def _get_conn(self) -> sqlite3.Connection:
-        if self._conn is None:
+        conn: sqlite3.Connection | None = getattr(self._local, 'conn', None)
+        if conn is None:
             os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-            self._conn = sqlite3.connect(self.db_path)
-            self._conn.execute("PRAGMA journal_mode=WAL")
-            self._conn.execute("PRAGMA foreign_keys=ON")
+            conn = sqlite3.connect(self.db_path)
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA foreign_keys=ON")
             # Load sqlite-vec extension
-            self._conn.enable_load_extension(True)
-            sqlite_vec.load(self._conn)
-            self._conn.enable_load_extension(False)
+            conn.enable_load_extension(True)
+            sqlite_vec.load(conn)
+            conn.enable_load_extension(False)
+            self._local.conn = conn
             if not self._initialized:
                 self._init_tables()
                 self._initialized = True
-        return self._conn
+        return conn
 
     def _init_tables(self) -> None:
         """Create all tables and virtual tables."""
@@ -144,50 +158,56 @@ class VectorStore:
         conn = self._get_conn()
         count = 0
 
+        # Batch insert: collect data and use executemany for performance
+        chunk_data = []
+        fts_data = []
+        valid_chunks = []
+
         for i, chunk in enumerate(chunks):
+            emb = embeddings[i]
+            if len(emb.shape) == 0:
+                continue
+
+            chunk_data.append((
+                chunk.id, chunk.paper_id, chunk.content,
+                chunk.page_number, chunk.chunk_index,
+                json.dumps(chunk.metadata),
+            ))
+
+            title = paper_meta.get("title", "") if paper_meta else ""
+            fts_data.append((chunk.id, chunk.paper_id, chunk.content, title))
+            valid_chunks.append((chunk, emb))
+
+        # Batch insert chunks
+        if chunk_data:
+            conn.executemany(
+                """INSERT OR REPLACE INTO chunks
+                   (chunk_id, paper_id, content, page_number, chunk_index, metadata_json)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                chunk_data,
+            )
+
+        # Insert embeddings individually (sqlite-vec virtual table requires per-row insert)
+        for chunk, emb in valid_chunks:
             try:
-                # Insert chunk
                 conn.execute(
-                    """INSERT OR REPLACE INTO chunks
-                       (chunk_id, paper_id, content, page_number, chunk_index, metadata_json)
-                       VALUES (?, ?, ?, ?, ?, ?)""",
-                    (
-                        chunk.id,
-                        chunk.paper_id,
-                        chunk.content,
-                        chunk.page_number,
-                        chunk.chunk_index,
-                        json.dumps(chunk.metadata),
-                    ),
+                    "INSERT OR REPLACE INTO chunk_embeddings (chunk_id, embedding) VALUES (?, ?)",
+                    (chunk.id, _serialize_vector(emb)),
+                )
+            except sqlite3.OperationalError:
+                conn.execute(
+                    "INSERT OR REPLACE INTO chunk_embeddings_fallback (chunk_id, embedding) VALUES (?, ?)",
+                    (chunk.id, _serialize_vector(emb)),
                 )
 
-                # Insert embedding
-                emb = embeddings[i]
-                if len(emb.shape) == 0:
-                    continue
+        # Batch insert FTS5
+        if fts_data:
+            conn.executemany(
+                "INSERT INTO papers_fts (chunk_id, paper_id, content, title) VALUES (?, ?, ?, ?)",
+                fts_data,
+            )
 
-                try:
-                    conn.execute(
-                        "INSERT OR REPLACE INTO chunk_embeddings (chunk_id, embedding) VALUES (?, ?)",
-                        (chunk.id, _serialize_vector(emb)),
-                    )
-                except sqlite3.OperationalError:
-                    # Fallback table
-                    conn.execute(
-                        "INSERT OR REPLACE INTO chunk_embeddings_fallback (chunk_id, embedding) VALUES (?, ?)",
-                        (chunk.id, _serialize_vector(emb)),
-                    )
-
-                # Insert into FTS5
-                title = paper_meta.get("title", "") if paper_meta else ""
-                conn.execute(
-                    "INSERT INTO papers_fts (chunk_id, paper_id, content, title) VALUES (?, ?, ?, ?)",
-                    (chunk.id, chunk.paper_id, chunk.content, title),
-                )
-
-                count += 1
-            except sqlite3.Error as e:
-                logger.error("Failed to insert chunk %s: %s", chunk.id, e)
+        count = len(valid_chunks)
 
         # Update paper metadata
         if paper_meta and chunks:
@@ -218,16 +238,17 @@ class VectorStore:
         if not chunk_ids:
             return 0
 
+        # Batch delete using WHERE IN (instead of N+1 individual deletes)
+        placeholders = ",".join("?" for _ in chunk_ids)
+
         # Delete from FTS5
-        for cid in chunk_ids:
-            conn.execute("DELETE FROM papers_fts WHERE chunk_id = ?", (cid,))
+        conn.execute(f"DELETE FROM papers_fts WHERE chunk_id IN ({placeholders})", chunk_ids)
 
         # Delete embeddings
-        for cid in chunk_ids:
-            try:
-                conn.execute("DELETE FROM chunk_embeddings WHERE chunk_id = ?", (cid,))
-            except sqlite3.OperationalError:
-                conn.execute("DELETE FROM chunk_embeddings_fallback WHERE chunk_id = ?", (cid,))
+        try:
+            conn.execute(f"DELETE FROM chunk_embeddings WHERE chunk_id IN ({placeholders})", chunk_ids)
+        except sqlite3.OperationalError:
+            conn.execute(f"DELETE FROM chunk_embeddings_fallback WHERE chunk_id IN ({placeholders})", chunk_ids)
 
         # Delete chunks
         conn.execute("DELETE FROM chunks WHERE paper_id = ?", (paper_id,))
@@ -264,9 +285,13 @@ class VectorStore:
 
         except sqlite3.OperationalError:
             # Fallback: brute-force cosine similarity
-            rows = conn.execute(
-                "SELECT ce.chunk_id, ce.embedding FROM chunk_embeddings_fallback ce"
-            ).fetchall()
+            sql = "SELECT ce.chunk_id, ce.embedding FROM chunk_embeddings_fallback ce"
+            if filter_paper_ids:
+                placeholders = ",".join("?" for _ in filter_paper_ids)
+                sql += f" JOIN chunks c ON ce.chunk_id = c.chunk_id WHERE c.paper_id IN ({placeholders})"
+                rows = conn.execute(sql, filter_paper_ids).fetchall()
+            else:
+                rows = conn.execute(sql).fetchall()
 
             candidates = []
             for chunk_id, emb_bytes in rows:
@@ -284,14 +309,14 @@ class VectorStore:
         # Apply paper_id filter
         if filter_paper_ids and results:
             valid_ids = set(filter_paper_ids)
-            filtered = []
-            for cid, score in results:
-                row = conn.execute(
-                    "SELECT paper_id FROM chunks WHERE chunk_id = ?", (cid,)
-                ).fetchone()
-                if row and row[0] in valid_ids:
-                    filtered.append((cid, score))
-            results = filtered
+            # Batch query: get paper_id for all result chunk_ids at once
+            placeholders = ",".join("?" for _ in [cid for cid, _ in results])
+            rows = conn.execute(
+                f"SELECT chunk_id, paper_id FROM chunks WHERE chunk_id IN ({placeholders})",
+                [cid for cid, _ in results],
+            ).fetchall()
+            chunk_to_paper = {r[0]: r[1] for r in rows}
+            results = [(cid, score) for cid, score in results if chunk_to_paper.get(cid) in valid_ids]
 
         return results
 
@@ -309,12 +334,12 @@ class VectorStore:
 
         # Build filter clause
         filter_clause = ""
-        params: list = [query, top_k]
+        params: list = [_escape_fts_query(query), top_k]
 
         if filter_paper_ids:
             placeholders = ",".join("?" for _ in filter_paper_ids)
             filter_clause = f"AND paper_id IN ({placeholders})"
-            params = [query] + filter_paper_ids + [top_k]
+            params = [_escape_fts_query(query)] + filter_paper_ids + [top_k]
 
         sql = f"""
             SELECT chunk_id, bm25(papers_fts) as score
@@ -409,6 +434,7 @@ class VectorStore:
         }
 
     def close(self) -> None:
-        if self._conn:
-            self._conn.close()
-            self._conn = None
+        conn: sqlite3.Connection | None = getattr(self._local, 'conn', None)
+        if conn:
+            conn.close()
+            self._local.conn = None

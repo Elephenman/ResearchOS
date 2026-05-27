@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, Select, Button, Space, Typography, Table, Tag, Empty, Tabs, message, Tooltip } from 'antd';
 import { CopyOutlined, LinkOutlined, CheckCircleOutlined, FileTextOutlined, BookOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
@@ -61,6 +62,7 @@ const CitationPage: React.FC = () => {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [entries, setEntries] = useState<CitationEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     loadPapers();
@@ -165,7 +167,7 @@ const CitationPage: React.FC = () => {
           <Empty description={
             <Space direction="vertical">
               <Text type="secondary">从文献库添加论文并标记为「已引用」后，引文将自动生成</Text>
-              <Button type="primary" icon={<BookOutlined />} onClick={() => window.location.hash = '/library'}>
+              <Button type="primary" icon={<BookOutlined />} onClick={() => navigate('/library')}>
                 前往文献库
               </Button>
             </Space>

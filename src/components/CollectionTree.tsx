@@ -19,7 +19,7 @@ const CollectionTree: React.FC = () => {
 
   useEffect(() => {
     fetchCollections();
-  }, []);
+  }, [fetchCollections]);
 
   const handleSelect = (selectedKeys: React.Key[]) => {
     const key = selectedKeys[0] as string;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, Select, Button, Space, Typography, Empty, Slider, message, Tag } from 'antd';
 import { ApartmentOutlined, NodeIndexOutlined, TeamOutlined, TagOutlined, ReloadOutlined } from '@ant-design/icons';
 
@@ -32,6 +32,8 @@ const GraphPage: React.FC = () => {
   const [edges, setEdges] = useState<GraphEdge[]>([]);
   const [loading, setLoading] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [canvasSize, setCanvasSize] = useState({ width: 900, height: 440 });
 
   const loadGraph = async () => {
     setLoading(true);
@@ -51,11 +53,13 @@ const GraphPage: React.FC = () => {
 
       if (result?.nodes?.length > 0) {
         // Simple force-directed layout
+        const cw = canvasSize.width || 900;
+        const ch = canvasSize.height || 440;
         const graphNodes = result.nodes.map((n: any, i: number) => ({
           id: n.id,
           label: n.label,
-          x: 400 + Math.cos(i * 2.4) * (150 + Math.random() * 100),
-          y: 300 + Math.sin(i * 2.4) * (150 + Math.random() * 100),
+          x: cw / 2 + Math.cos(i * 2.4) * (cw * 0.2 + Math.random() * cw * 0.1),
+          y: ch / 2 + Math.sin(i * 2.4) * (ch * 0.2 + Math.random() * ch * 0.1),
           type: n.type,
           size: n.size || 20,
         }));
@@ -78,7 +82,23 @@ const GraphPage: React.FC = () => {
     if (nodes.length > 0) {
       drawGraph();
     }
-  }, [nodes, edges]);
+  }, [nodes, edges, canvasSize]);
+
+  // ResizeObserver for canvas container
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const observer = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        if (width > 0 && height > 0) {
+          setCanvasSize({ width: Math.floor(width), height: Math.floor(height) });
+        }
+      }
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [nodes.length > 0]);
 
   const drawGraph = () => {
     const canvas = canvasRef.current;
@@ -173,12 +193,14 @@ const GraphPage: React.FC = () => {
             />
           </div>
         ) : (
-          <canvas
-            ref={canvasRef}
-            width={900}
-            height={440}
-            style={{ width: '100%', background: '#0d0d0d', borderRadius: 8 }}
-          />
+          <div ref={containerRef} style={{ width: '100%', height: 440 }}>
+            <canvas
+              ref={canvasRef}
+              width={canvasSize.width}
+              height={canvasSize.height}
+              style={{ width: '100%', height: '100%', background: '#0d0d0d', borderRadius: 8 }}
+            />
+          </div>
         )}
       </Card>
 

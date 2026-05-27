@@ -19,8 +19,15 @@ export class DatabaseService {
   }
 
   async initialize(): Promise<void> {
-    this.createTables();
-    this.createIndexes();
+    this.db.exec('BEGIN TRANSACTION');
+    try {
+      this.createTables();
+      this.createIndexes();
+      this.db.exec('COMMIT');
+    } catch (e) {
+      this.db.exec('ROLLBACK');
+      throw e;
+    }
   }
 
   private createTables(): void {
@@ -170,11 +177,7 @@ export class DatabaseService {
     return uuidv4();
   }
 
-  // Generic query helpers
-  get dbInstance() {
-    return this.db;
-  }
-
+  // Generic query helpers — no raw db exposure to prevent arbitrary SQL
   prepare(sql: string) {
     return this.db.prepare(sql);
   }

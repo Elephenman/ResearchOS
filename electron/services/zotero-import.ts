@@ -88,6 +88,10 @@ export function importFromZotero(
   let skipped = 0;
 
   try {
+    // Use transaction to ensure atomic import
+    const rosDbRaw = (rosDb as any).db as Database.Database;
+    rosDbRaw.exec('BEGIN TRANSACTION');
+
     // 1. Get all journal article items
     const items = getZoteroItems(zoteroDb);
     onProgress?.(`Found ${items.length} items in Zotero`, 0);
@@ -158,6 +162,9 @@ export function importFromZotero(
         errors.push(`Item "${item.title}": ${(err as Error).message}`);
       }
     }
+
+    // Commit transaction
+    rosDbRaw.exec('COMMIT');
   } finally {
     zoteroDb.close();
   }

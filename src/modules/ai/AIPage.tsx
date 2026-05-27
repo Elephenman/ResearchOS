@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Card, Input, Button, Space, Typography, Avatar, Tag, Spin, Empty, Select, message } from 'antd';
-import { RobotOutlined, UserOutlined, SendOutlined, ThunderboltOutlined, ReadOutlined, TranslationOutlined, SettingOutlined } from '@ant-design/icons';
+import { RobotOutlined, UserOutlined, SendOutlined, ThunderboltOutlined, ReadOutlined, TranslationOutlined, SettingOutlined, WarningOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 
 const { Title, Text, Paragraph } = Typography;
@@ -27,6 +27,7 @@ const AI_MODELS: Record<string, string[]> = {
 interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
+  isError?: boolean;
 }
 
 const AIPage: React.FC = () => {
@@ -76,7 +77,7 @@ const AIPage: React.FC = () => {
       );
       setMessages(prev => [...prev, { role: 'assistant', content: response }]);
     } catch {
-      setMessages(prev => [...prev, { role: 'assistant', content: 'AI 回复失败，请检查网络或模型配置' }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: 'AI 回复失败，请检查网络或模型配置', isError: true }]);
     } finally {
       setLoading(false);
     }
@@ -144,12 +145,14 @@ const AIPage: React.FC = () => {
                   display: 'flex', gap: 12, marginBottom: 16,
                   justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
                 }}>
-                  {msg.role === 'assistant' && <Avatar icon={<RobotOutlined />} style={{ background: '#1677ff', flexShrink: 0 }} />}
+                  {msg.role === 'assistant' && <Avatar icon={msg.isError ? <WarningOutlined /> : <RobotOutlined />} style={{ background: msg.isError ? '#ff4d4f' : '#1677ff', flexShrink: 0 }} />}
                   <div style={{
                     maxWidth: '70%', padding: '10px 16px', borderRadius: 12,
                     background: msg.role === 'user' ? '#1677ff' : '#2a2a2a',
                     color: msg.role === 'user' ? '#fff' : '#e0e0e0',
+                    border: msg.isError ? '1px solid #ff4d4f' : 'none',
                   }}>
+                    {msg.isError && <Tag color="error" style={{ marginBottom: 4 }}>失败</Tag>}
                     <Paragraph style={{ margin: 0, color: 'inherit', whiteSpace: 'pre-wrap', fontSize: 14 }}>{msg.content}</Paragraph>
                   </div>
                   {msg.role === 'user' && <Avatar icon={<UserOutlined />} style={{ background: '#595959', flexShrink: 0 }} />}

@@ -1,8 +1,34 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
+// Allowed IPC channels — prevents renderer from invoking arbitrary handlers
+const ALLOWED_CHANNELS = new Set([
+  'window:minimize', 'window:maximize', 'window:close', 'window:isMaximized',
+  'library:getPapers', 'library:getPaperById', 'library:addPaper', 'library:updatePaper',
+  'library:deletePaper', 'library:importPapers', 'library:exportPapers', 'library:checkDuplicates',
+  'collections:getCollections', 'collections:createCollection', 'collections:updateCollection', 'collections:deleteCollection',
+  'tags:getTags', 'tags:createTag', 'tags:deleteTag', 'tags:addTagToPaper', 'tags:removeTagFromPaper',
+  'reader:getAnnotations', 'reader:addAnnotation', 'reader:deleteAnnotation',
+  'reader:getNotes', 'reader:addNote', 'reader:updateNote', 'reader:deleteNote',
+  'ai:chat', 'ai:summarizePaper', 'ai:extractKeyFindings', 'ai:translateAbstract',
+  'citation:formatCitation', 'citation:insertCitation',
+  'graph:getCitationGraph', 'graph:getCoAuthorGraph', 'graph:getKeywordGraph',
+  'downloader:downloadPaper', 'downloader:batchDownloadPapers', 'downloader:downloadFile',
+  'search:searchPapers', 'search:getSearchHistory',
+  'review:generateReviewOutline', 'review:generateReviewSection',
+  'rag:indexPaper', 'rag:indexBatch', 'rag:searchRelevant', 'rag:status', 'rag:deletePaper',
+  'zotero:findDataDir', 'zotero:import', 'zotero:selectDir',
+  'settings:getSetting', 'settings:setSetting', 'settings:getAllSettings',
+]);
+
+function safeInvoke(channel: string, ...args: unknown[]): Promise<unknown> {
+  if (!ALLOWED_CHANNELS.has(channel)) {
+    return Promise.reject(new Error(`IPC channel "${channel}" is not allowed`));
+  }
+  return ipcRenderer.invoke(channel, ...args);
+}
+
 contextBridge.exposeInMainWorld('electronAPI', {
-  // Generic invoke (for window controls and other dynamic IPC)
-  invoke: (channel: string, ...args: unknown[]) => ipcRenderer.invoke(channel, ...args),
+  invoke: safeInvoke,
 
   // Window controls
   minimizeWindow: () => ipcRenderer.invoke('window:minimize'),

@@ -47,7 +47,7 @@ export interface Annotation {
   content: string;
   type: 'highlight' | 'note' | 'underline';
   color: string;
-  position: { x: number; y: number; width: number; height: number };
+  position?: { x: number; y: number; width: number; height: number } | null;
   createdAt: string;
 }
 

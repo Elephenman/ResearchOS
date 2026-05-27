@@ -81,11 +81,13 @@ function checkSidecarHealth(): Promise<boolean> {
  */
 async function waitForSidecar(maxWaitMs: number = SIDECAR_STARTUP_TIMEOUT): Promise<boolean> {
   const startTime = Date.now();
+  let delay = 200; // Start with 200ms, exponential backoff
   while (Date.now() - startTime < maxWaitMs) {
     if (await checkSidecarHealth()) {
       return true;
     }
-    await new Promise((r) => setTimeout(r, 500));
+    await new Promise((r) => setTimeout(r, delay));
+    delay = Math.min(delay * 1.5, 2000); // Max 2s between polls
   }
   return false;
 }
@@ -131,7 +133,11 @@ export async function startSidecar(
   sidecarProcess = spawn(pythonPath, ['-m', 'app.main'], {
     cwd: sidecarDir,
     env: {
-      ...process.env,
+      // Only pass necessary env vars (not full process.env)
+      PATH: process.env.PATH || '',
+      HOME: process.env.HOME || '',
+      USERPROFILE: process.env.USERPROFILE || '',
+      APPDATA: process.env.APPDATA || '',
       SIDECAR_PORT: String(SIDECAR_PORT),
       SIDECAR_HOST: SIDECAR_HOST,
       SIDECAR_DB_PATH: path.join(app.getPath('userData'), 'rag.db'),
@@ -180,7 +186,9 @@ export async function startSidecar(
  */
 export async function stopSidecar(): Promise<void> {
   if (sidecarProcess) {
-    sidecarProcess.kill('SIGTERM');
+    // Use platform-appropriate termination signal
+    const killSignal = process.platform === 'win32' ? undefined : 'SIGTERM';
+    sidecarProcess.kill(killSignal);
     // Wait briefly for clean exit
     await new Promise<void>((resolve) => {
       const timeout = setTimeout(() => {

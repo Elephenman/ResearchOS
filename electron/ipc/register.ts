@@ -153,12 +153,8 @@ export function registerLibraryIPC(db: DatabaseService): void {
   });
 
   ipcMain.handle('library:deletePaper', async (_event, id: string) => {
-    db.prepare('DELETE FROM authors WHERE paper_id = ?').run(id);
-    db.prepare('DELETE FROM paper_tags WHERE paper_id = ?').run(id);
-    db.prepare('DELETE FROM paper_collections WHERE paper_id = ?').run(id);
-    db.prepare('DELETE FROM annotations WHERE paper_id = ?').run(id);
-    db.prepare('DELETE FROM notes WHERE paper_id = ?').run(id);
-    db.prepare('DELETE FROM keywords WHERE paper_id = ?').run(id);
+    // CASCADE will automatically delete authors, paper_tags, paper_collections,
+    // annotations, notes, keywords, review_outlines, review_sections
     db.prepare('DELETE FROM papers WHERE id = ?').run(id);
   });
 
@@ -170,7 +166,7 @@ export function registerLibraryIPC(db: DatabaseService): void {
       title: '导入文献',
       properties: ['openFile', 'multiSelections'],
       filters: [
-        { name: '文献文件', extensions: ['pdf', 'bib', 'ris', 'xml'] },
+        { name: '文献文件', extensions: ['pdf', 'bib'] },
         { name: 'PDF 文件', extensions: ['pdf'] },
         { name: 'BibTeX 文件', extensions: ['bib'] },
         { name: '所有文件', extensions: ['*'] },
@@ -394,9 +390,15 @@ export function registerSettingsIPC(db: DatabaseService): void {
 
   ipcMain.handle('settings:getAllSettings', async () => {
     const rows = db.prepare('SELECT key, value FROM settings').all() as { key: string; value: string }[];
+    const SENSITIVE_KEYS = ['rag.embed.apiKey', 'ai.openai.apiKey', 'ai.anthropic.apiKey'];
     const result: Record<string, string> = {};
     for (const row of rows) {
-      result[row.key] = row.value;
+      // Mask sensitive values (API keys)
+      if (SENSITIVE_KEYS.includes(row.key)) {
+        result[row.key] = row.value ? `${row.value.slice(0, 4)}...${row.value.slice(-4)}` : '';
+      } else {
+        result[row.key] = row.value;
+      }
     }
     return result;
   });
@@ -499,6 +501,21 @@ export function registerDownloaderIPC(db: DatabaseService): void {
   });
 
   ipcMain.handle('downloader:downloadFile', async (_event, url: string, fileName: string) => {
+    // Validate URL — only allow http/https protocols (prevent SSRF)
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        throw new Error(`Unsupported protocol: ${parsed.protocol}`);
+      }
+      // Block localhost/private IPs to prevent SSRF
+      const hostname = parsed.hostname;
+      if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.') || hostname.startsWith('10.') || hostname.startsWith('172.')) {
+        throw new Error('Cannot download from local/private addresses');
+      }
+    } catch (err: any) {
+      throw new Error(`Invalid download URL: ${err.message}`);
+    }
+
     const win = BrowserWindow.getFocusedWindow();
     const downloadsDir = path.join(app.getPath('home'), 'Downloads', 'ResearchOS');
     if (!fs.existsSync(downloadsDir)) fs.mkdirSync(downloadsDir, { recursive: true });
@@ -614,6 +631,16 @@ export function registerZoteroIPC(db: DatabaseService): void {
 
   // Import from Zotero
   ipcMain.handle('zotero:import', async (_event, dataDir: string) => {
+    // Validate dataDir — must contain zotero.sqlite and not be a symlink
+    const dbFile = path.join(dataDir, 'zotero.sqlite');
+    if (!fs.existsSync(dbFile)) {
+      return { imported: 0, skipped: 0, errors: [`zotero.sqlite not found at ${dataDir}`] };
+    }
+    const stat = fs.lstatSync(dbFile);
+    if (stat.isSymbolicLink()) {
+      return { imported: 0, skipped: 0, errors: ['Symbolic links are not allowed for Zotero data'] };
+    }
+
     try {
       const result = importFromZotero(dataDir, db);
       return result;

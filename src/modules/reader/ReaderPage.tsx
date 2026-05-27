@@ -1,19 +1,19 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { Button, Space, Slider, Typography, Tooltip, Divider, Tabs, Input, List, Tag, Empty, Spin, message } from 'antd';
 import {
-  ZoomInOutlined, ZoomOutOutlined, FullscreenOutlined,
+  ZoomInOutlined, ZoomOutOutlined, FullscreenOutlined, FullscreenExitOutlined,
   RobotOutlined, HighlightOutlined, FormOutlined,
   LeftOutlined, RightOutlined, FileTextOutlined,
   TranslationOutlined, ThunderboltOutlined, ReadOutlined,
-  SendOutlined,
+  SendOutlined, WarningOutlined,
 } from '@ant-design/icons';
 import { useParams } from 'react-router-dom';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
-// Configure PDF.js worker
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+// Configure PDF.js worker — local file for offline reliability
+pdfjs.GlobalWorkerOptions.workerSrc = new URL('/pdf.worker.min.mjs', window.location.origin).href;
 
 const { Text, Paragraph } = Typography;
 
@@ -44,9 +44,11 @@ const ReaderPage: React.FC = () => {
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [aiInput, setAiInput] = useState('');
-  const [aiMessages, setAiMessages] = useState<Array<{ role: string; content: string }>>([]);
+  const [aiMessages, setAiMessages] = useState<Array<{ role: string; content: string; isError?: boolean }>>([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [selectedText, setSelectedText] = useState('');
+  const [highlightMode, setHighlightMode] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Load paper info
   useEffect(() => {
@@ -115,7 +117,7 @@ const ReaderPage: React.FC = () => {
       );
       setAiMessages(prev => [...prev, { role: 'assistant', content: response }]);
     } catch {
-      setAiMessages(prev => [...prev, { role: 'assistant', content: 'AI 回复失败，请检查 Ollama 是否运行' }]);
+      setAiMessages(prev => [...prev, { role: 'assistant', content: 'AI 回复失败，请检查 Ollama 是否运行', isError: true }]);
     } finally {
       setAiLoading(false);
     }
@@ -146,6 +148,41 @@ const ReaderPage: React.FC = () => {
     if (page >= 1 && page <= numPages) setPageNumber(page);
   };
 
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+    } else {
+      document.exitFullscreen();
+    }
+  };
+
+  useEffect(() => {
+    const handler = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener('fullscreenchange', handler);
+    return () => document.removeEventListener('fullscreenchange', handler);
+  }, []);
+
+  const handleHighlight = () => {
+    const selection = window.getSelection();
+    const text = selection?.toString().trim();
+    if (!text) {
+      setHighlightMode(prev => !prev);
+      return;
+    }
+    // Save selection as annotation
+    window.electronAPI.addAnnotation({
+      paperId: paperId!,
+      pageNumber,
+      content: text,
+      type: 'highlight',
+      color: '#ffe066',
+    }).then(() => {
+      loadAnnotations();
+      message.success('高亮已保存');
+      selection?.removeAllRanges();
+    }).catch(() => message.error('保存高亮失败'));
+  };
+
   return (
     <div style={{ display: 'flex', height: '100%', gap: 0 }}>
       {/* PDF Viewer Area */}
@@ -166,14 +203,18 @@ const ReaderPage: React.FC = () => {
             <Tooltip title="下一页"><Button type="text" icon={<RightOutlined />} onClick={() => goToPage(pageNumber + 1)} disabled={pageNumber >= numPages} /></Tooltip>
           </Space>
           <Space>
-            <Tooltip title="高亮"><Button type="text" icon={<HighlightOutlined />} /></Tooltip>
+            <Tooltip title={highlightMode ? '取消高亮模式' : '选中文本后高亮'}>
+              <Button type={highlightMode ? 'primary' : 'text'} icon={<HighlightOutlined />} onClick={handleHighlight} />
+            </Tooltip>
             <Tooltip title="添加笔记"><Button type="text" icon={<FormOutlined />} onClick={handleAddNote} /></Tooltip>
             <Divider type="vertical" />
             <Tooltip title="AI 助手">
               <Button type={showAIPanel ? 'primary' : 'text'} icon={<RobotOutlined />}
                 onClick={() => setShowAIPanel(!showAIPanel)} />
             </Tooltip>
-            <Tooltip title="全屏"><Button type="text" icon={<FullscreenOutlined />} /></Tooltip>
+            <Tooltip title={isFullscreen ? '退出全屏' : '全屏'}>
+              <Button type="text" icon={isFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />} onClick={toggleFullscreen} />
+            </Tooltip>
           </Space>
         </div>
 
@@ -255,7 +296,9 @@ const ReaderPage: React.FC = () => {
                             color: msg.role === 'user' ? '#fff' : '#e0e0e0',
                             marginLeft: msg.role === 'user' ? 40 : 0,
                             marginRight: msg.role === 'user' ? 0 : 40,
+                            border: msg.isError ? '1px solid #ff4d4f' : 'none',
                           }}>
+                            {msg.isError && <Tag color="error" style={{ marginBottom: 4, fontSize: 11 }}>失败</Tag>}
                             <Paragraph style={{ margin: 0, color: 'inherit', fontSize: 13, whiteSpace: 'pre-wrap' }}>
                               {msg.content}
                             </Paragraph>

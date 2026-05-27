@@ -35,8 +35,7 @@ class EmbeddingService:
             return np.array([])
 
         if not settings.embedding_api_key:
-            logger.warning("No embedding API key configured — returning zero vectors")
-            return np.zeros((len(texts), settings.embedding_dim), dtype=np.float32)
+            raise ValueError("No embedding API key configured — please set it in Settings")
 
         return self._embed_openai_compat(texts)
 
@@ -83,10 +82,10 @@ class EmbeddingService:
 
         except httpx.HTTPStatusError as e:
             logger.error("Embedding API error %d: %s", e.response.status_code, e.response.text[:200])
-            return np.zeros((len(texts), settings.embedding_dim), dtype=np.float32)
+            raise RuntimeError(f"Embedding API returned HTTP {e.response.status_code}") from e
         except httpx.HTTPError as e:
             logger.error("Embedding request failed: %s", e)
-            return np.zeros((len(texts), settings.embedding_dim), dtype=np.float32)
+            raise RuntimeError(f"Embedding request failed: {e}") from e
 
     def check_health(self) -> dict:
         """Check if the embedding API is configured and reachable."""

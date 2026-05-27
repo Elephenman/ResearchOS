@@ -91,7 +91,7 @@ async def ingest_document(req: IngestRequest):
         )
     except Exception as e:
         logger.error("Ingest failed for %s: %s", req.paper_id, e)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Ingest failed — check sidecar logs for details")
 
 
 @router.post("/ingest/batch", response_model=BatchIngestResponse)
@@ -181,7 +181,7 @@ async def query_rag(req: QueryRequest):
         )
     except Exception as e:
         logger.error("Query failed: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Search query failed — check sidecar logs for details")
 
 
 @router.delete("/paper/{paper_id}", response_model=DeleteResponse)
@@ -193,4 +193,4 @@ async def delete_paper(paper_id: str):
         return DeleteResponse(paper_id=paper_id, chunks_deleted=count)
     except Exception as e:
         logger.error("Delete failed for %s: %s", paper_id, e)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Delete operation failed — check sidecar logs for details")

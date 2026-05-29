@@ -157,8 +157,8 @@ jobs:
 
             ### 下载安装包
 
-            - **Windows**：下载 `ResearchOS-Setup-${{ github.ref_name }}.exe`，双击安装
-            - **Linux**：下载 `ResearchOS-${{ github.ref_name }}.AppImage`，赋予执行权限后运行
+            - **Windows**：下载 `ResearchOS-Setup-1.0.0.exe`（或对应版本），双击安装
+            - **Linux**：下载 `ResearchOS-1.0.0.AppImage`（或对应版本），赋予执行权限后运行
 
             > **注意**：macOS 版本暂时未发布，将在后续版本中提供。
 

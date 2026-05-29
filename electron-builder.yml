@@ -11,9 +11,18 @@ files:
   - dist-electron/**/*
   - node_modules/**/*
 
+extraResources:
+  - from: "sidecar/"
+    to: "sidecar"
+    filter:
+      - "**/*.py"
+      - "**/*.toml"
+      - "**/*.txt"
+
 asar: true
 asarUnpack:
   - "**/*.node"
+  - "node_modules/better-sqlite3/**/*"
 
 win:
   target:

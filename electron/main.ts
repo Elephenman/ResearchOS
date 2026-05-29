@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Menu, screen } from 'electron';
+import { app, BrowserWindow, Menu, screen } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { registerAllIPC } from './ipc/register';
@@ -105,9 +105,6 @@ if (!gotTheLock) {
     createWindow();
     createMenu();
 
-    // Register window control IPC handlers
-    registerWindowIPC();
-
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {
         createWindow();
@@ -153,7 +150,7 @@ function createWindow() {
     mainWindow.webContents.openDevTools({ mode: 'bottom' });
   } else {
     // Production: load built files
-    mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+    mainWindow.loadFile(path.join(__dirname, '../dist/renderer/index.html'));
   }
 
   // Save window state on move/resize/close
@@ -225,25 +222,6 @@ function createMenu() {
 
   const menu = Menu.buildFromTemplate(template);
   Menu.setApplicationMenu(menu);
-}
-
-/** Register IPC handlers for window controls (title bar buttons) */
-function registerWindowIPC() {
-  ipcMain.handle('window:minimize', () => {
-    mainWindow?.minimize();
-  });
-
-  ipcMain.handle('window:maximize', () => {
-    if (mainWindow?.isMaximized()) {
-      mainWindow.unmaximize();
-    } else {
-      mainWindow?.maximize();
-    }
-  });
-
-  ipcMain.handle('window:close', () => {
-    mainWindow?.close();
-  });
 }
 
 app.on('window-all-closed', () => {

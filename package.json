@@ -1,6 +1,6 @@
 {
   "name": "researchos",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "description": "ResearchOS - Modular AI Research Desktop Workbench",
   "main": "dist-electron/main.js",
   "license": "MIT",

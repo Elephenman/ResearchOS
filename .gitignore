@@ -46,3 +46,9 @@ coverage/
 
 # Misc
 *.tgz
+
+# Project docs (not part of source code)
+DELIVERY.md
+设计方案.md
+优化方案.md
+public/pdf.worker.min.mjs

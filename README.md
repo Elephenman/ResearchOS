@@ -90,7 +90,7 @@
 
 - **Node.js** ≥ 22.x
 - **Python** ≥ 3.12
-- （可选）**Ollama** 或 OpenAI 兼容 API Key（用于嵌入与 AI 对话）
+- （可选）OpenAI 兼容嵌入 API Key（用于 RAG 语义搜索）
 
 ### 安装
 
@@ -254,6 +254,12 @@ ResearchOS/
 - [x] Zotero 数据库一键导入
 - [x] OpenAI 兼容嵌入 API（DeepSeek / Moonshot / Zhipu）
 - [x] sqlite-vec 向量存储
+
+### V2.1 — ✅ 已完成
+- [x] 嵌入服务重构：移除 Ollama 依赖，全面转向 OpenAI 兼容 API
+- [x] 修复 sqlite-vec 扩展加载问题（`sqlite_vec.load()` 显式加载）
+- [x] 设置页新增嵌入 API 配置表单（提供商 / Key / BaseURL / 模型）
+- [x] Sidecar 启动参数传递嵌入配置环境变量
 
 ### V3 — 🚧 开发中
 - [ ] Word / WPS 插件引文插入

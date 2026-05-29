@@ -131,7 +131,7 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: true,
     },
-    show: false, // Don't show until ready
+    show: true, // Show immediately for debugging — if blank, renderer load failed
   });
 
   // Restore maximized state
@@ -139,9 +139,9 @@ function createWindow() {
     mainWindow.maximize();
   }
 
-  // Show window when ready (prevents white flash)
-  mainWindow.once('ready-to-show', () => {
-    mainWindow?.show();
+  // Log renderer errors (critical for diagnosing production build issues)
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+    console.error('[Main] Renderer failed to load:', errorCode, errorDescription, validatedURL);
   });
 
   // Development: load Vite dev server
@@ -150,7 +150,9 @@ function createWindow() {
     mainWindow.webContents.openDevTools({ mode: 'bottom' });
   } else {
     // Production: load built files
-    mainWindow.loadFile(path.join(__dirname, '../dist/renderer/index.html'));
+    const rendererPath = path.join(__dirname, '../dist/renderer/index.html');
+    console.log('[Main] Loading renderer from:', rendererPath);
+    mainWindow.loadFile(rendererPath);
   }
 
   // Save window state on move/resize/close

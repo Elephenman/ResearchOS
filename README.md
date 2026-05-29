@@ -16,7 +16,7 @@
   <a href="https://github.com/Elephenman/ResearchOS/blob/main/LICENSE">
     <img src="https://img.shields.io/github/license/Elephenman/ResearchOS?color=%231677ff&style=for-the-badge" alt="License" />
   </a>
-  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-%231677ff?style=for-the-badge" alt="Platform" />
+  <img src="https://img.shields.io/static/v1?label=platform&message=Windows%20%7C%20macOS%20%7C%20Linux&color=1677ff&style=for-the-badge" alt="Platform" />
   <img src="https://img.shields.io/badge/Electron-33.x-%2347848F?style=for-the-badge&logo=electron" alt="Electron" />
   <img src="https://img.shields.io/badge/React-18.x-%2361DAFB?style=for-the-badge&logo=react" alt="React" />
 </p>

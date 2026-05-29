@@ -22,7 +22,8 @@ extraResources:
 asar: true
 asarUnpack:
   - "**/*.node"
-  - "node_modules/better-sqlite3/**/*"
+  - "**/better-sqlite3/**/*"
+  - "**/sidecar/**/*.py"
 
 win:
   target:

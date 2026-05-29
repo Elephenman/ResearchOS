@@ -9,23 +9,10 @@ directories:
 files:
   - dist/**/*
   - dist-electron/**/*
-  - "!node_modules/**/*"
-
-extraResources:
-  - from: "node_modules/better-sqlite3/"
-    to: "better-sqlite3"
-    filter:
-      - "**/*.node"
-      - "**/*.js"
-      - "**/*.json"
-      - "binding.gyp"
-      - "src/**/*"
-      - "deps/**/*"
 
 asar: true
 asarUnpack:
   - "**/*.node"
-  - "**/better-sqlite3/**"
 
 win:
   target:

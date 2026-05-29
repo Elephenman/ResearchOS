@@ -9,6 +9,7 @@ directories:
 files:
   - dist/**/*
   - dist-electron/**/*
+  - node_modules/**/*
 
 asar: true
 asarUnpack:
